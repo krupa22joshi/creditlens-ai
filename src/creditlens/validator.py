@@ -16,8 +16,9 @@ from .memo import REQUIRED_SECTIONS
 from .schemas import RetrievedClause, ValidationReport
 
 NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
-# Any bracketed reference such as [RLP-2] or an invented [RBI-99] counts as a citation.
-CITATION = re.compile(r"\[([A-Z]{2,5}-\d+)\]")
+# Any bracketed reference such as [RLP-2], [RLP-3, KYC-2] or an invented [RBI-99] counts as a citation.
+BRACKET = re.compile(r"\[([^\[\]]{1,80})\]")
+CLAUSE_REF = re.compile(r"\b[A-Z]{2,5}-\d{1,3}\b")  # short numbers only, so "[APP-00012]" is not a citation
 DECISIONS = ["APPROVE", "REFER TO CREDIT COMMITTEE", "DECLINE"]
 
 
@@ -69,7 +70,7 @@ def validate_memo(memo: str, facts: dict, clauses: list[RetrievedClause]) -> Val
 
     # Citation grounding and coverage
     provided = {c.clause_id for c in clauses}
-    cited = sorted(set(CITATION.findall(memo)))
+    cited = sorted({ref for group in BRACKET.findall(memo) for ref in CLAUSE_REF.findall(group)})
     invalid = [c for c in cited if c not in provided]
     if not cited:
         issues.append("Memo cites no policy clauses.")

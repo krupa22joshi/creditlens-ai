@@ -17,7 +17,7 @@ system of record before anyone sees it.
 |---|---|
 | A probability of default with reason codes | ML model chosen from four candidates with stratified CV; SHAP attributions per applicant |
 | An auditable decision | Deterministic policy engine (DTI, bureau score, delinquency, LTV, amount caps, KYC, AML) |
-| Answers grounded in policy | Clause-level RAG over the bank's policy documents, with inline citations like `[RLP-2]` |
+| Answers grounded in policy | Clause-level semantic RAG (Gemini embeddings) over 36 clauses in 6 policy documents, with inline citations like `[RLP-2]` |
 | A memo that a regulator would accept | LLM draft → validator → feedback loop → safe fallback; nothing unvalidated is ever shown |
 | Freedom from vendor lock-in | Gemini, Azure OpenAI, OpenAI or an offline writer, chosen with one environment variable |
 
@@ -38,7 +38,7 @@ flowchart TD
     end
     R5 -- passed --> OUT[Credit memo + evidence + audit trail]
     R5 -- still failing after N attempts --> FB[Deterministic template memo] --> OUT
-    KB[(Policy knowledge base<br/>lending · model risk · KYC/AML)] --> R3
+    KB[(Policy knowledge base<br/>lending · model risk · KYC/AML<br/>collateral · fair practices · fraud)] --> R3
     M[(Versioned PD model)] --> R1
 ```
 
@@ -77,17 +77,53 @@ defend to a model risk committee: higher model complexity is not used when it do
 after the loan is paid out. On its own it scores a single-feature ROC-AUC of about 0.91. The
 audit flags it automatically and the pipeline drops it before training (policy MRM-4).
 
-**End-to-end guardrail evaluation** (`python scripts/evaluate.py --n 100`, unseen applicants):
+### Live-LLM guardrail evaluation
 
-| Metric | Value |
+40 unseen applicants, memos written by **Gemini Flash-Lite** (`gemini-flash-lite-latest`) with
+dense retrieval. Full output: [`reports/eval_gemini.json`](reports/eval_gemini.json); example
+memo: [`reports/sample_memo_gemini.md`](reports/sample_memo_gemini.md).
+
+| Metric | Result |
 |---|---|
-| Memo validation pass rate | 100% |
-| Flagged checks discussed with a citation | 100% |
-| Decision mix (approve / refer / decline) | 51% / 21% / 28% |
-| Mean pipeline latency (offline writer) | ~0.04 s |
+| First drafts that passed validation | **77.5%** (31 / 40) |
+| Fixed by self-correction (validator feedback → redraft) | **20%** (8 / 40) |
+| Fell back to the deterministic template | 2.5% (1 / 40) |
+| **Final memos passing validation** | **100%** |
+| Flagged policy checks discussed with a citation | 100% |
+| Mean / p95 latency per application | 9.8 s / 22.3 s (free-tier rate limits included) |
 
-> With a live LLM, also track the *first-attempt* pass rate and the *fallback* rate. They show how
-> often the model needs correcting, which is a useful KPI when choosing between LLM providers.
+**What the validator caught**: 10 rejected drafts out of 50 generated.
+
+| Failure mode | Count | Example |
+|---|---|---|
+| A REVIEW/FAIL policy check not cited | 9 | the near-prime score check `[RLP-3]` was skipped |
+| Citation to a clause that does not exist | 2 | `RLR-6`, a typo of `RLP-6` |
+| A number not present in the facts | 1 | `10,000` |
+
+These are the errors a credit officer could miss when reading quickly. Without the validator,
+almost **1 in 4 memos** would have reached a reviewer with a gap or an unsupported figure.
+
+### Retrieval benchmark
+
+44 labelled questions over 36 policy clauses ([`evaluation/retrieval_questions.json`](evaluation/retrieval_questions.json)).
+"Paraphrase" questions are phrased the way a credit officer or customer would ask, for example
+*"Can my wife's salary be counted to help me qualify?"* → `COL-4`.
+
+| Retrieval | Hit@1 (all) | Hit@1 (paraphrase) | MRR |
+|---|---|---|---|
+| Lexical (TF-IDF) | 61.4% | 50.0% | 0.665 |
+| **Dense (Gemini `gemini-embedding-001`)** | **95.5%** | **92.9%** | **0.970** |
+| Hybrid (reciprocal rank fusion) | 72.7% | 60.7% | 0.802 |
+
+Dense retrieval is the default. Equal-weight hybrid fusion scored *below* dense alone, because
+the lexical ranking adds noise on paraphrased questions, so it is not used by default. Full
+results, including every miss: [`reports/retrieval_eval.json`](reports/retrieval_eval.json).
+
+### Offline run
+
+With no API key, the offline template writer gives a 100% validation pass rate by construction.
+That run checks the pipeline and the validator wiring; it does not measure LLM quality.
+CI runs it on every push.
 
 ---
 
@@ -135,11 +171,13 @@ docker compose up --build     # API on :8000, dashboard on :8501
 ### Tests and evaluation
 
 ```bash
-pytest                                     # 19 tests: model, leakage, rules, RAG, guardrails, API
-python scripts/evaluate.py --n 100         # end-to-end guardrail metrics -> artifacts/eval_report.json
+pytest                                              # 28 tests: model, leakage, rules, RAG, guardrails, retries, API
+python scripts/evaluate.py --n 40 --provider gemini  # live-LLM guardrail metrics (add --save-report for reports/)
+python scripts/evaluate_retrieval.py                # lexical vs dense vs hybrid on 44 labelled questions
 ```
 
-CI (GitHub Actions) runs lint, the test suite, training and the guardrail evaluation on every push.
+CI (GitHub Actions) runs lint, the test suite, training, the guardrail evaluation and the
+lexical retrieval benchmark on every push, offline, with no API keys.
 
 ---
 
@@ -147,7 +185,7 @@ CI (GitHub Actions) runs lint, the test suite, training and the guardrail evalua
 
 * **Credit appraisal**: enter an application or load a sample. The page shows the decision, PD gauge, SHAP driver chart, the generated memo (downloadable), policy checks, retrieved evidence and the full agent audit trail.
 * **Model governance**: model comparison, hold-out metrics and the leakage audit, acting as a lightweight model card.
-* **Policy search**: ask questions of the policy knowledge base.
+* **Policy search**: ask questions in plain language and compare dense, hybrid and lexical retrieval side by side.
 
 ---
 
@@ -156,16 +194,20 @@ CI (GitHub Actions) runs lint, the test suite, training and the guardrail evalua
 ```
 creditlens-ai/
 ├── app/streamlit_app.py        # dashboard
-├── knowledge_base/             # policy documents (lending, model risk, KYC/AML), one clause per heading
+├── knowledge_base/             # 6 policy documents, 36 clauses, one clause per heading
+├── evaluation/                 # labelled retrieval questions (keyword vs paraphrase)
+├── reports/                    # saved results: live-LLM evaluation, retrieval benchmark, sample memo
 ├── scripts/
 │   ├── train.py                # train + version the PD model
-│   └── evaluate.py             # batch guardrail evaluation
+│   ├── evaluate.py             # batch guardrail evaluation (offline or live LLM)
+│   └── evaluate_retrieval.py   # retrieval benchmark
 ├── src/creditlens/
 │   ├── agents.py               # multi-agent pipeline and self-correction loop
 │   ├── validator.py            # GenAI guardrails
 │   ├── memo.py                 # system prompt, prompt builder, template memo
-│   ├── llm.py                  # Gemini / Azure OpenAI / OpenAI / offline providers
-│   ├── retriever.py            # clause-level RAG
+│   ├── llm.py                  # Gemini / Azure OpenAI / OpenAI / offline providers, retry + quota handling
+│   ├── embeddings.py           # Gemini embeddings with on-disk cache
+│   ├── retriever.py            # clause-level RAG: dense, lexical and hybrid (RRF)
 │   ├── policy_rules.py         # deterministic policy engine and risk grading
 │   ├── model.py                # leakage audit, model comparison, SHAP explanations
 │   ├── features.py             # shared feature engineering
@@ -181,14 +223,19 @@ creditlens-ai/
 
 * **Decision and narration are separated.** Approve/refer/decline comes from transparent rules plus model grading, and the LLM only explains it. This keeps GenAI out of the approval path, which most model-risk and responsible-AI frameworks require.
 * **Retrieval works at clause level, not page level.** Each chunk is one citable policy clause, so citations can be checked by a machine and audits are simple.
-* **Clauses are retrieved two ways.** Clauses linked to triggered checks are always fetched by ID (reliable recall). Semantic search adds context for the applicant's top risk drivers.
+* **Clauses are retrieved two ways.** Clauses linked to triggered checks are always fetched by ID (reliable recall). Semantic search adds the single best clause for each top risk driver, so loosely related text stays out of the prompt.
+* **Retrieval mode was chosen by measurement, not assumption.** Hybrid search is often recommended by default, but on this corpus it scored below pure embeddings, so dense is the default and lexical remains the offline fallback.
+* **Failures are separated from quality.** A quota or network error stops the evaluation rather than being counted as a bad memo, and daily-quota errors fail fast instead of waiting.
 * **The LLM layer has no vendor SDKs.** Providers are called over HTTPS, so moving a client from Gemini to Azure OpenAI is a configuration change, not a code change.
 * **Synthetic data with real structure.** The generator encodes known credit-risk relationships, including nonlinear DTI payment shock and score × DTI interaction, plus a planted leakage column. The whole project can then be published and reproduced without customer data.
 * **Explainability was chosen over raw complexity.** Features that duplicate DTI (EMI, loan amount, existing debt) are excluded so SHAP reason codes keep intuitive signs for credit officers.
 
 ## Roadmap
 
-- [ ] Swap TF-IDF for a vector store (ChromaDB + sentence-transformers) behind the same retriever interface
+- [x] Semantic retrieval with embeddings, benchmarked against lexical and hybrid
+- [x] Live-LLM evaluation with rejection-reason breakdown
+- [ ] Move the in-memory vector index to a vector store (e.g. ChromaDB) for larger corpora
+- [ ] Analyst Q&A agent with tool calling ("what loan amount would be approvable?")
 - [ ] Fairness monitoring across segments (MRM-5) and drift alerts (MRM-6)
 - [ ] Ingest real regulatory circulars (PDF) with clause-aware chunking
 - [ ] LLM-as-judge scoring of memo readability alongside the rule-based validator

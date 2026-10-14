@@ -144,8 +144,13 @@ def model_page(model: RiskModel) -> None:
 
 
 def policy_page(retriever: PolicyRetriever) -> None:
-    query = st.text_input("Ask the policy knowledge base", "What is the maximum debt-to-income ratio?")
-    for hit in retriever.search(query, k=4):
+    query = st.text_input("Ask the policy knowledge base", "Can my wife's salary be counted to help me qualify?")
+    modes = ["lexical"] if retriever.dense_matrix is None else ["dense", "hybrid", "lexical"]
+    mode = st.radio("Retrieval mode", modes, horizontal=True,
+                    help="dense = Gemini embeddings · lexical = TF-IDF · hybrid = reciprocal rank fusion of both")
+    if retriever.dense_matrix is None:
+        st.caption("Set GEMINI_API_KEY to enable semantic (embedding) search.")
+    for hit in retriever.search(query, k=4, mode=mode):
         st.markdown(f"**{hit.clause_id} · {hit.title}** — _{hit.source}, score {hit.score}_")
         st.write(hit.text)
 
@@ -162,6 +167,8 @@ def main() -> None:
         st.info("All memos are AI-generated drafts for credit officer review.", icon="ℹ️")
 
     model, retriever = load_model(), load_retriever()
+    st.sidebar.caption(f"Model: {model.name} ({model.version}) · Retrieval: {retriever.default_mode} · "
+                       f"{len(retriever.clauses)} policy clauses")
     if page == "Model governance":
         return model_page(model)
     if page == "Policy search":

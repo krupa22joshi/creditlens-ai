@@ -71,6 +71,8 @@ class Assessment(BaseModel):
     credit_memo: str
     validation: ValidationReport
     memo_attempts: int
+    rejected_draft_issues: list[list[str]] = []
+    llm_error: str | None = None
     memo_source: Literal["llm", "fallback-template"]
     llm_provider: str
     model_name: str

@@ -25,4 +25,7 @@ CV_FOLDS = int(os.getenv("CREDITLENS_CV_FOLDS", "5"))
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))
 LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "60"))
-MAX_MEMO_ATTEMPTS = int(os.getenv("CREDITLENS_MAX_MEMO_ATTEMPTS", "2"))
+# Retrieval: "auto" (hybrid when an embedding key is available), "hybrid", "dense" or "lexical".
+RETRIEVAL_MODE = os.getenv("RETRIEVAL_MODE", "auto").lower()
+LLM_MAX_RETRIES =int(os.getenv("LLM_MAX_RETRIES", "5"))
+MAX_MEMO_ATTEMPTS =int(os.getenv("CREDITLENS_MAX_MEMO_ATTEMPTS", "2"))

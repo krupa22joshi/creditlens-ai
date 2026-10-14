@@ -53,6 +53,8 @@ class CaseState:
     memo: str = ""
     memo_source: str = "llm"
     attempts: int = 0
+    rejected_draft_issues: list[list[str]] = field(default_factory=list)
+    llm_error: str | None = None
     validation: ValidationReport | None = None
     trace: list[str] = field(default_factory=list)
 
@@ -106,11 +108,12 @@ class CreditAppraisalPipeline:
             clause = self.retriever.get(cid)
             if clause:
                 wanted[cid] = clause
-        # Semantic search adds context for the specific risk drivers and open issues.
+        # Semantic search adds context for the specific risk drivers and open issues. One best
+        # clause per query keeps loosely related policy text out of the prompt.
         queries = [f"{d.label} {d.direction}" for d in s.drivers[:3]]
         queries += [f"{c.name} {c.detail}" for c in s.checks if c.status in ("FAIL", "REVIEW")]
         for q in queries:
-            for hit in self.retriever.search(q, k=2):
+            for hit in self.retriever.search(q, k=1):
                 wanted.setdefault(hit.clause_id, hit)
         s.clauses = sorted(wanted.values(), key=lambda c: c.clause_id)
         s.log("PolicyResearcher", f"retrieved {len(s.clauses)} clauses: {[c.clause_id for c in s.clauses]}")
@@ -157,6 +160,7 @@ class CreditAppraisalPipeline:
             try:
                 draft = self.llm.generate(SYSTEM_PROMPT, build_prompt(s.facts, s.clauses, feedback))
             except LLMError as exc:
+                s.llm_error = str(exc)
                 s.log("MemoWriter", f"attempt {attempt}: LLM call failed ({exc})")
                 break
             report = validate_memo(draft, s.facts, s.clauses)
@@ -164,6 +168,7 @@ class CreditAppraisalPipeline:
             if report.passed:
                 s.memo, s.validation, s.memo_source = draft, report, "llm"
                 return
+            s.rejected_draft_issues.append(report.issues)
             feedback = report.issues
 
         # Never surface an unvalidated draft (MRM-3): fall back to the deterministic template.
@@ -191,6 +196,8 @@ class CreditAppraisalPipeline:
             credit_memo=s.memo,
             validation=s.validation,
             memo_attempts=s.attempts,
+            rejected_draft_issues=s.rejected_draft_issues,
+            llm_error=s.llm_error,
             memo_source=s.memo_source,
             llm_provider=self.llm.name,
             model_name=self.model.name,

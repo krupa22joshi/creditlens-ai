@@ -1,0 +1,336 @@
+{
+  "questions": 44,
+  "clauses": 36,
+  "results": {
+    "lexical": {
+      "all": {
+        "hit@1": 0.614,
+        "hit@3": 0.705,
+        "mrr": 0.665
+      },
+      "keyword": {
+        "hit@1": 0.812,
+        "hit@3": 0.938,
+        "mrr": 0.891
+      },
+      "paraphrase": {
+        "hit@1": 0.5,
+        "hit@3": 0.571,
+        "mrr": 0.536
+      }
+    },
+    "dense": {
+      "all": {
+        "hit@1": 0.955,
+        "hit@3": 0.977,
+        "mrr": 0.97
+      },
+      "keyword": {
+        "hit@1": 1.0,
+        "hit@3": 1.0,
+        "mrr": 1.0
+      },
+      "paraphrase": {
+        "hit@1": 0.929,
+        "hit@3": 0.964,
+        "mrr": 0.954
+      }
+    },
+    "hybrid": {
+      "all": {
+        "hit@1": 0.727,
+        "hit@3": 0.818,
+        "mrr": 0.802
+      },
+      "keyword": {
+        "hit@1": 0.938,
+        "hit@3": 1.0,
+        "mrr": 0.969
+      },
+      "paraphrase": {
+        "hit@1": 0.607,
+        "hit@3": 0.714,
+        "mrr": 0.707
+      }
+    }
+  },
+  "misses": {
+    "lexical": [
+      {
+        "question": "The customer's EMIs would eat up more than half of their salary - can we lend?",
+        "expected": "RLP-2",
+        "got": [
+          "MRM-5",
+          "FRD-1",
+          "KYC-2"
+        ]
+      },
+      {
+        "question": "What bureau score is needed for an unsecured personal loan?",
+        "expected": "RLP-3",
+        "got": [
+          "RLP-7",
+          "RLP-3",
+          "RLP-1"
+        ]
+      },
+      {
+        "question": "Is someone with a CIBIL of 610 treated differently?",
+        "expected": "RLP-3",
+        "got": [
+          "FRD-3"
+        ]
+      },
+      {
+        "question": "How much of the flat's price can the bank finance?",
+        "expected": "RLP-5",
+        "got": [
+          "COL-3",
+          "DIG-2",
+          "DIG-1"
+        ]
+      },
+      {
+        "question": "If the model says 30% chance of default, who signs off?",
+        "expected": "RLP-6",
+        "got": [
+          "RLP-1",
+          "RLP-4",
+          "FRD-1"
+        ]
+      },
+      {
+        "question": "Can a person earning 40k a month borrow 15 lakh without security?",
+        "expected": "RLP-7",
+        "got": [
+          "COL-2",
+          "COL-1"
+        ]
+      },
+      {
+        "question": "What must a credit memo contain?",
+        "expected": "RLP-8",
+        "got": [
+          "KYC-3",
+          "RLP-8",
+          "MRM-4"
+        ]
+      },
+      {
+        "question": "What should we write down when recording the reason for a lending decision?",
+        "expected": "RLP-8",
+        "got": [
+          "COLL-3",
+          "DIG-2",
+          "MRM-1"
+        ]
+      },
+      {
+        "question": "How do we tell the officer why the algorithm scored this person as risky?",
+        "expected": "MRM-1",
+        "got": [
+          "MRM-2",
+          "MRM-1",
+          "RLP-6"
+        ]
+      },
+      {
+        "question": "What if the chatbot makes up a figure in the write-up?",
+        "expected": "MRM-3",
+        "got": [
+          "COLL-3"
+        ]
+      },
+      {
+        "question": "Can we train on whether the account went to collections?",
+        "expected": "MRM-4",
+        "got": [
+          "DIG-2",
+          "RLP-4",
+          "COLL-3"
+        ]
+      },
+      {
+        "question": "She joined her company four months ago - is that a concern?",
+        "expected": "KYC-3",
+        "got": [
+          "RLP-4",
+          "COLL-2",
+          "KYC-2"
+        ]
+      },
+      {
+        "question": "Can my wife's salary be counted to help me qualify?",
+        "expected": "COL-4",
+        "got": [
+          "FRD-1",
+          "KYC-2"
+        ]
+      },
+      {
+        "question": "How quickly must we explain to a customer why we turned them down?",
+        "expected": "FPC-1",
+        "got": [
+          "MRM-5"
+        ]
+      },
+      {
+        "question": "Can riskier customers be charged a higher rate?",
+        "expected": "FPC-3",
+        "got": [
+          "KYC-3",
+          "FPC-4",
+          "FPC-2"
+        ]
+      },
+      {
+        "question": "When is an unsecured loan written off?",
+        "expected": "COLL-3",
+        "got": [
+          "RLP-7",
+          "AML-1",
+          "RLP-4"
+        ]
+      },
+      {
+        "question": "Can a digital borrower cancel the loan right after disbursal?",
+        "expected": "DIG-3",
+        "got": [
+          "DIG-1",
+          "DIG-3",
+          "DIG-2"
+        ]
+      }
+    ],
+    "dense": [
+      {
+        "question": "How much of the flat's price can the bank finance?",
+        "expected": "RLP-5",
+        "got": [
+          "COL-1",
+          "COL-2",
+          "FPC-3"
+        ]
+      },
+      {
+        "question": "Can we train on whether the account went to collections?",
+        "expected": "MRM-4",
+        "got": [
+          "COLL-3",
+          "MRM-4",
+          "MRM-6"
+        ]
+      }
+    ],
+    "hybrid": [
+      {
+        "question": "The customer's EMIs would eat up more than half of their salary - can we lend?",
+        "expected": "RLP-2",
+        "got": [
+          "KYC-2",
+          "COLL-2",
+          "COL-1"
+        ]
+      },
+      {
+        "question": "Is someone with a CIBIL of 610 treated differently?",
+        "expected": "RLP-3",
+        "got": [
+          "COL-1",
+          "COLL-1",
+          "COLL-2"
+        ]
+      },
+      {
+        "question": "How much of the flat's price can the bank finance?",
+        "expected": "RLP-5",
+        "got": [
+          "COL-2",
+          "KYC-2",
+          "DIG-2"
+        ]
+      },
+      {
+        "question": "If the model says 30% chance of default, who signs off?",
+        "expected": "RLP-6",
+        "got": [
+          "RLP-1",
+          "MRM-6",
+          "MRM-2"
+        ]
+      },
+      {
+        "question": "Can a person earning 40k a month borrow 15 lakh without security?",
+        "expected": "RLP-7",
+        "got": [
+          "COL-1",
+          "COL-4",
+          "COL-3"
+        ]
+      },
+      {
+        "question": "What must a credit memo contain?",
+        "expected": "RLP-8",
+        "got": [
+          "KYC-3",
+          "RLP-8",
+          "MRM-1"
+        ]
+      },
+      {
+        "question": "What should we write down when recording the reason for a lending decision?",
+        "expected": "RLP-8",
+        "got": [
+          "MRM-1",
+          "RLP-8",
+          "FPC-1"
+        ]
+      },
+      {
+        "question": "How do we tell the officer why the algorithm scored this person as risky?",
+        "expected": "MRM-1",
+        "got": [
+          "MRM-2",
+          "MRM-1",
+          "RLP-6"
+        ]
+      },
+      {
+        "question": "What if the chatbot makes up a figure in the write-up?",
+        "expected": "MRM-3",
+        "got": [
+          "COLL-3",
+          "MRM-3",
+          "MRM-2"
+        ]
+      },
+      {
+        "question": "Can we train on whether the account went to collections?",
+        "expected": "MRM-4",
+        "got": [
+          "COLL-3",
+          "RLP-4",
+          "COLL-2"
+        ]
+      },
+      {
+        "question": "She joined her company four months ago - is that a concern?",
+        "expected": "KYC-3",
+        "got": [
+          "RLP-4",
+          "KYC-2",
+          "COLL-2"
+        ]
+      },
+      {
+        "question": "Can my wife's salary be counted to help me qualify?",
+        "expected": "COL-4",
+        "got": [
+          "FRD-1",
+          "KYC-2",
+          "COL-5"
+        ]
+      }
+    ]
+  }
+}

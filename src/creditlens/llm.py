@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from abc import ABC, abstractmethod
 
 import httpx
@@ -22,6 +23,41 @@ from . import config
 
 class LLMError(RuntimeError):
     pass
+
+
+class QuotaExceededError(LLMError):
+    pass
+
+
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def post_with_retry(url: str, body: dict, headers: dict, provider: str, max_retries: int | None = None) -> dict:
+    """POST JSON, backing off on rate limits and transient server errors.
+
+    Honours the provider's suggested delay (Gemini's ``retryDelay`` or a ``Retry-After``
+    header) so batch jobs stay inside free-tier quotas instead of failing.
+    """
+    max_retries = config.LLM_MAX_RETRIES if max_retries is None else max_retries
+    for attempt in range(max_retries + 1):
+        try:
+            resp = httpx.post(url, json=body, headers=headers, timeout=config.LLM_TIMEOUT_SECONDS)
+        except httpx.TransportError as exc:
+            if attempt == max_retries:
+                raise LLMError(f"{provider} network error: {exc}") from exc
+            time.sleep(2 ** attempt)
+            continue
+        if resp.status_code == 200:
+            return resp.json()
+        if resp.status_code not in RETRYABLE_STATUS or attempt == max_retries:
+            raise LLMError(f"{provider} error {resp.status_code}: {resp.text[:300]}")
+        hint = re.search(r'"retryDelay":\s*"(\d+(?:\.\d+)?)s"', resp.text)
+        delay = float(hint.group(1)) if hint else float(resp.headers.get("retry-after", 2 ** (attempt + 1)))
+        if "PerDay" in resp.text or delay > 120:
+            # A daily quota will not recover within this request - fail fast with a clear reason.
+            raise QuotaExceededError(f"{provider} quota exhausted (retry suggested in {delay:.0f}s)")
+        time.sleep(delay + 1)
+    raise LLMError(f"{provider} retries exhausted")  # pragma: no cover
 
 
 class LLMClient(ABC):
@@ -56,7 +92,8 @@ class GeminiLLM(LLMClient):
 
     def __init__(self):
         self.api_key = os.environ["GEMINI_API_KEY"]
-        self.model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        # An alias that tracks the current Flash release, so retired versions don't break the app.
+        self.model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
     def generate(self, system: str, prompt: str) -> str:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
@@ -65,11 +102,12 @@ class GeminiLLM(LLMClient):
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": config.LLM_TEMPERATURE},
         }
-        resp = httpx.post(url, json=body, headers={"x-goog-api-key": self.api_key}, timeout=config.LLM_TIMEOUT_SECONDS)
-        if resp.status_code != 200:
-            raise LLMError(f"Gemini error {resp.status_code}: {resp.text[:300]}")
-        parts = resp.json()["candidates"][0]["content"]["parts"]
-        return self._strip_fences("".join(p.get("text", "") for p in parts))
+        data = post_with_retry(url, body, {"x-goog-api-key": self.api_key}, self.name)
+        try:
+            parts = data["candidates"][0]["content"]["parts"]
+        except (KeyError, IndexError) as exc:
+            raise LLMError(f"Gemini returned no content: {str(data)[:300]}") from exc
+        return self._strip_fences("".join(p.get("text", "") for p in parts if not p.get("thought")))
 
 
 class _ChatCompletionsLLM(LLMClient):
@@ -84,10 +122,8 @@ class _ChatCompletionsLLM(LLMClient):
         }
         if self.model:
             body["model"] = self.model
-        resp = httpx.post(self.url, json=body, headers=self.headers, timeout=config.LLM_TIMEOUT_SECONDS)
-        if resp.status_code != 200:
-            raise LLMError(f"{self.name} error {resp.status_code}: {resp.text[:300]}")
-        return self._strip_fences(resp.json()["choices"][0]["message"]["content"] or "")
+        data = post_with_retry(self.url, body, self.headers, self.name)
+        return self._strip_fences(data["choices"][0]["message"]["content"] or "")
 
 
 class AzureOpenAILLM(_ChatCompletionsLLM):

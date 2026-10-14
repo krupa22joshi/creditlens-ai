@@ -20,7 +20,7 @@ def risk_model(tmp_path_factory) -> RiskModel:
 
 @pytest.fixture(scope="session")
 def retriever() -> PolicyRetriever:
-    return PolicyRetriever()
+    return PolicyRetriever(embedder=False)  # tests stay offline and deterministic
 
 
 @pytest.fixture
