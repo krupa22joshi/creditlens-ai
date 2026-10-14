@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "creditlens-ai"
+version = "1.0.0"
+description = "Explainable, policy-grounded credit appraisal with self-validating generative AI credit memos"
+authors = [{ name = "Krupa Joshi" }]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E402"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/creditlens/memo.py" = ["E501"]  # prompt and memo templates are prose
